@@ -99,22 +99,20 @@ class SVM:
             self.w = None
 
     def project(self, X):
-        if self.w is not None:
+        if self.w is not None:  # linear case
             return X @ self.w + self.b
         else:
-            y_predict = np.zeros(len(X))
-            for i in range(len(X)):
-                s = 0
-                for alpha, sv_y, sv_x in zip(self.alphas, self.sv_y, self.sv_X):
-                    if self.kernel == 'linear':
-                        s += alpha * sv_y *self.kernel_linear(X[i].reshape(1,-1), sv_x.reshape(1,-1))
-                    elif self.kernel == 'poly':
-                        s += alpha * sv_y * self.kernel_poly(X[i].reshape(1,-1), sv_x.reshape(1,-1))
-                    elif self.kernel == 'rbf':
-                        s += alpha * sv_y * self.kernel_rbf(X[i].reshape(1,-1), sv_x.reshape(1,-1))
-                        self.C = None
-                y_predict[i] = s
-            return y_predict + self.b
+            # Vectorized computation for nonlinear kernels
+            if self.kernel == 'linear':
+                K = X @ self.sv_X.T
+            elif self.kernel == 'poly':
+                K = (self.C + X @ self.sv_X.T) ** self.degree
+            elif self.kernel == 'rbf':
+                X_norm = np.sum(X**2, axis=1).reshape(-1,1)        # (n_samples,1)
+                sv_norm = np.sum(self.sv_X**2, axis=1).reshape(1,-1)  # (1,n_sv)
+                K = np.exp(-self.gamma * (X_norm + sv_norm - 2*X @ self.sv_X.T))
+            y_predict = (K * (self.alphas * self.sv_y)).sum(axis=1) + self.b
+            return y_predict
     
     def predict(self, X):
         return np.sign(self.project(X))
@@ -129,7 +127,7 @@ from sklearn.metrics import accuracy_score
 # -----------------------------
 # Generate toy data
 # -----------------------------
-X, y = make_blobs(n_samples=200, centers=2, random_state=42, cluster_std=1.5)
+X, y = make_blobs(n_samples=200, centers=2, random_state=55, cluster_std=5)
 y = np.where(y == 0, -1, 1)  # Convert labels to -1, 1
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
